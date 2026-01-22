@@ -1,0 +1,47 @@
+Frontend:
+  impl: SimpleO3
+  clock_ratio: 8
+  num_expected_insts: 10000000
+  traces: 
+    - traces/flexprof/lbm_domain0.trace
+    - traces/flexprof/lbm_domain1.trace
+    - traces/flexprof/lbm_domain2.trace
+    - traces/flexprof/lbm_domain3.trace
+    - traces/flexprof/lbm_domain4.trace
+    - traces/flexprof/lbm_domain5.trace
+    - traces/flexprof/lbm_domain6.trace
+
+  Translation:
+    impl: RandomTranslation
+    max_addr: 2147483648
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR4
+    org:
+      preset: DDR4_8Gb_x8
+      channel: 1
+      rank: 8
+    timing:
+      preset: DDR4_2400R
+
+  Controller:
+    impl: FlexProf
+    num_domains: 7
+    alteration: 4
+    pattern_file: ../flexprof/input/patterns/lbm.8pattern
+    
+    Scheduler:
+      impl: FlexProf
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 4
+    plugins:
+
+  AddrMapper:
+    impl: RoBaRaCoCh

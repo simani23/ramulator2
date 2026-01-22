@@ -20,6 +20,9 @@ target_sources(
   impl/scheduler/generic_scheduler.cpp
   impl/scheduler/bliss_scheduler.cpp
   impl/scheduler/prac_scheduler.cpp
+  impl/scheduler/flexprof_scheduler.cpp
+
+  impl/flexprof_controller.cpp
 
   impl/refresh/all_bank_refresh.cpp
   

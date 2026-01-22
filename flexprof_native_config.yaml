@@ -1,0 +1,43 @@
+# FlexProf Native Configuration
+# 
+# This configuration uses the FlexProfTrace frontend which reads
+# USIMM-format traces directly, preserving domain_id and R/W information.
+#
+# Trace format: <bubbles> R|W <hex_addr> [<pc>] <domain_id>
+
+Frontend:
+  impl: FlexProfTrace
+  clock_ratio: 8
+  max_requests: 10000000  # 0 = unlimited
+  path: traces/flexprof/lbm_combined.trace
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR4
+    org:
+      preset: DDR4_8Gb_x8
+      channel: 1
+      rank: 8
+    timing:
+      preset: DDR4_2400R
+
+  Controller:
+    impl: FlexProf
+    num_domains: 7
+    alteration: 4
+    pattern_file: ../flexprof/input/patterns/lbm.8pattern
+    
+    Scheduler:
+      impl: FlexProf
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 4
+    plugins:
+
+  AddrMapper:
+    impl: RoBaRaCoCh
