@@ -1,4 +1,6 @@
 #include <iostream>
+#include <chrono>
+#include <iomanip>
 
 #include <argparse/argparse.hpp>
 #include <spdlog/spdlog.h>
@@ -10,6 +12,26 @@
 #include "memory_system/memory_system.h"
 #include "example/example_ifce.h"
 
+namespace {
+  // Format duration in human-readable form
+  std::string format_duration(std::chrono::seconds secs) {
+    auto hours = std::chrono::duration_cast<std::chrono::hours>(secs);
+    secs -= hours;
+    auto mins = std::chrono::duration_cast<std::chrono::minutes>(secs);
+    secs -= mins;
+    
+    std::ostringstream oss;
+    if (hours.count() > 0) {
+      oss << hours.count() << "h ";
+    }
+    if (mins.count() > 0 || hours.count() > 0) {
+      oss << mins.count() << "m ";
+    }
+    oss << secs.count() << "s";
+    return oss.str();
+  }
+}
+
 int main(int argc, char* argv[]) {
   // Parse command line arguments
   argparse::ArgumentParser program("Ramulator", "2.0");
@@ -20,6 +42,13 @@ int main(int argc, char* argv[]) {
   program.add_argument("-p", "--param").metavar("KEY=VALUE")
     .append()
     .help("Specify parameter to override in the configuration file. Repeat this option to change multiple parameters.");
+  program.add_argument("-v", "--verbose")
+    .default_value(false)
+    .implicit_value(true)
+    .help("Enable verbose output with periodic progress updates.");
+  program.add_argument("--progress-interval").metavar("CYCLES")
+    .default_value(std::string("10000000"))
+    .help("Cycles between progress updates when verbose (default: 10M cycles).");
 
   try {
     program.parse_args(argc, argv);
@@ -68,6 +97,10 @@ int main(int argc, char* argv[]) {
   if (use_dumped_yaml && has_param_override) {
     spdlog::warn("Using dumped configuration. Parameter overrides with -p/--param will be ignored!");
   }
+
+  // Get verbose and progress interval settings
+  bool verbose = program.get<bool>("-v");
+  uint64_t progress_interval = std::stoull(program.get<std::string>("--progress-interval"));
   
   // Parse the configurations
   YAML::Node config;
@@ -97,6 +130,19 @@ int main(int argc, char* argv[]) {
 
   int tick_mult = frontend_tick * mem_tick;
 
+  // Start timing
+  auto start_time = std::chrono::steady_clock::now();
+  uint64_t last_progress_cycle = 0;
+  
+  if (verbose) {
+    auto progress = frontend->get_progress();
+    if (progress.has_progress_info) {
+      size_t target = progress.max_requests > 0 ? progress.max_requests : progress.trace_length;
+      spdlog::info("Starting simulation: {} requests to process", target);
+    }
+    spdlog::info("Progress updates every {} cycles", progress_interval);
+  }
+
   for (uint64_t i = 0;; i++) {
     if (((i % tick_mult) % mem_tick) == 0) {
       frontend->tick();
@@ -109,11 +155,48 @@ int main(int argc, char* argv[]) {
     if ((i % tick_mult) % frontend_tick == 0) {
       memory_system->tick();
     }
+
+    // Progress output (only in verbose mode)
+    if (verbose && (i - last_progress_cycle) >= progress_interval) {
+      last_progress_cycle = i;
+      auto now = std::chrono::steady_clock::now();
+      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start_time);
+      
+      auto progress = frontend->get_progress();
+      if (progress.has_progress_info) {
+        size_t target = progress.max_requests > 0 ? progress.max_requests : progress.trace_length;
+        double pct = (target > 0) ? (100.0 * progress.requests_sent / target) : 0.0;
+        
+        // Estimate remaining time
+        std::string eta_str = "calculating...";
+        if (progress.requests_sent > 0 && elapsed.count() > 0) {
+          double rate = static_cast<double>(progress.requests_sent) / elapsed.count();
+          size_t remaining = target - progress.requests_sent;
+          auto eta_secs = std::chrono::seconds(static_cast<long>(remaining / rate));
+          eta_str = format_duration(eta_secs);
+        }
+        
+        spdlog::info("Progress: {}/{} ({:.1f}%) | Elapsed: {} | ETA: {}",
+                     progress.requests_sent, target, pct,
+                     format_duration(elapsed), eta_str);
+      } else {
+        spdlog::info("Cycle: {} | Elapsed: {}", i, format_duration(elapsed));
+      }
+    }
   }
+
+  // Calculate total duration
+  auto end_time = std::chrono::steady_clock::now();
+  auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
   // Finalize the simulation. Recursively print all statistics from all components
   frontend->finalize();
   memory_system->finalize();
+
+  // Print timing summary
+  spdlog::info("Simulation completed in {}", format_duration(
+    std::chrono::duration_cast<std::chrono::seconds>(total_duration)));
+  spdlog::info("Total time: {:.3f} seconds", total_duration.count() / 1000.0);
 
   return 0;
 }

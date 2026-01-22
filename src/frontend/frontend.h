@@ -11,6 +11,16 @@
 
 namespace Ramulator {
 
+/**
+ * @brief Progress information for simulation monitoring
+ */
+struct SimulationProgress {
+  size_t requests_sent = 0;
+  size_t max_requests = 0;    // 0 means based on trace length
+  size_t trace_length = 0;
+  bool has_progress_info = false;
+};
+
 class IFrontEnd : public Clocked<IFrontEnd>, public TopLevel<IFrontEnd> {
   RAMULATOR_REGISTER_INTERFACE(IFrontEnd, "Frontend", "The frontend that drives the simulation.");
 
@@ -46,6 +56,12 @@ class IFrontEnd : public Clocked<IFrontEnd>, public TopLevel<IFrontEnd> {
     virtual int get_num_cores() { return 1; };
 
     int get_clock_ratio() { return m_clock_ratio; };
+
+    /**
+     * @brief    Get current simulation progress for monitoring
+     * @return   SimulationProgress struct with request counts
+     */
+    virtual SimulationProgress get_progress() { return SimulationProgress{}; };
 
     /**
      * @brief    Receives memory requests from external sources (e.g., coming from a full system simulator like GEM5)

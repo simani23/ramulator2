@@ -98,6 +98,15 @@ public:
     return m_num_requests_sent >= m_trace_length;
   }
 
+  SimulationProgress get_progress() override {
+    SimulationProgress progress;
+    progress.requests_sent = m_num_requests_sent;
+    progress.max_requests = m_max_requests;
+    progress.trace_length = m_trace_length;
+    progress.has_progress_info = true;
+    return progress;
+  }
+
 private:
   void init_trace(const std::string& file_path_str) {
     fs::path trace_path(file_path_str);
@@ -124,10 +133,11 @@ private:
       }
 
       // Parse address (hex or decimal)
+      // Use stoull to handle large unsigned addresses (high bit set)
       if (addr_str.substr(0, 2) == "0x" || addr_str.substr(0, 2) == "0X") {
-        entry.addr = std::stoll(addr_str.substr(2), nullptr, 16);
+        entry.addr = static_cast<Addr_t>(std::stoull(addr_str.substr(2), nullptr, 16));
       } else {
-        entry.addr = std::stoll(addr_str);
+        entry.addr = static_cast<Addr_t>(std::stoull(addr_str));
       }
 
       entry.is_write = (op_type == "W");
