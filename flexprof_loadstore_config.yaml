@@ -1,0 +1,56 @@
+# FlexProf Load/Store Trace Configuration
+# 
+# This configuration uses the FlexProfLoadStoreTrace frontend which reads
+# standard Load/Store format traces with optional domain_id per entry.
+#
+# This enables FlexProf's spatial isolation mechanisms with a single trace file:
+# - Per-domain read/write queues in the memory controller
+# - Pattern-based scheduling with domain-aware bank partitioning
+#
+# Trace format:
+#   LD <addr>                    (read, uses default_domain)
+#   ST <addr>                    (write, uses default_domain)
+#   LD <addr> <domain_id>        (read, specified domain)
+#   ST <addr> <domain_id>        (write, specified domain)
+#   R <addr> [<domain_id>]       (alternative read syntax)
+#   W <addr> [<domain_id>]       (alternative write syntax)
+#
+# Addresses can be decimal or hex (0x prefix).
+
+Frontend:
+  impl: FlexProfLoadStoreTrace
+  clock_ratio: 8
+  max_requests: 10000000  # 0 = run full trace once
+  default_domain: 0       # Domain ID for entries without explicit domain
+  path: traces/mixed_domains.trace
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR4
+    org:
+      preset: DDR4_8Gb_x8
+      channel: 1
+      rank: 8
+    timing:
+      preset: DDR4_2400R
+
+  Controller:
+    impl: FlexProf
+    num_domains: 7
+    alteration: 4
+    pattern_file: ../flexprof/input/patterns/lbm.8pattern
+    
+    Scheduler:
+      impl: FlexProf
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 4
+    plugins:
+
+  AddrMapper:
+    impl: RoBaRaCoCh

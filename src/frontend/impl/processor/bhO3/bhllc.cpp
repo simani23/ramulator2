@@ -293,8 +293,8 @@ void BHO3LLC::deserialize(std::string serialization_filename) {
     std::string dirty_str = file_line.substr(0, file_line.find(","));
     
     int index = std::stoi(index_str);
-    Addr_t addr = std::stoll(addr_str);
-    Addr_t tag = std::stoll(tag_str);
+    Addr_t addr = std::stoull(addr_str);
+    Addr_t tag = std::stoull(tag_str);
     bool dirty = std::stoi(dirty_str);
     if(m_cache_sets.find(index) == m_cache_sets.end()){
       m_cache_sets.insert({index, std::list<BHO3LLC::Line>()});

@@ -1,0 +1,54 @@
+[Ramulator::FlexProfTrace] [info] Loading FlexProf trace file traces/flexprof/lbm_combined.trace ...
+[Ramulator::FlexProfTrace] [info] Loaded 8000000 trace entries.
+[2026-01-23 21:49:34.186] [info] FlexProf: Loaded 2800 pattern entries from ../flexprof/input/patterns/lbm.8pattern
+Frontend:
+  impl: FlexProfTrace
+
+[2026-01-23 21:58:51.817] [info] FlexProf Controller 0 finalized. Total pattern turns: 149764028
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 4961468
+  total_num_read_requests: 5038532
+  memory_system_cycles: 1698324151
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+
+
+  Controller:
+    impl: FlexProf
+    id: Channel 0
+    domain_6_writes: 496116
+    domain_6_reads: 452431
+    domain_5_writes: 496138
+    num_write_reqs_0: 4961468
+    total_read_latency_0: 10476888690
+    domain_4_reads: 341977
+    domain_5_reads: 502480
+    domain_4_writes: 496167
+    flexprof_pattern_turns_0: 149764028
+    domain_0_reads: 1071047
+    domain_2_reads: 364907
+    domain_1_reads: 787955
+    domain_0_writes: 1488445
+    domain_1_writes: 992256
+    num_read_reqs_0: 3881642
+    domain_3_reads: 360845
+    domain_3_writes: 496173
+    domain_2_writes: 496173
+    Scheduler:
+      impl: FlexProf
+    RefreshManager:
+      impl: AllBank
+
+
+    RowPolicy:
+      impl: ClosedRowPolicy
+      num_close_reqs: 496703
+
+
+
+[2026-01-23 21:58:51.817] [info] Simulation completed in 9m 17s
+[2026-01-23 21:58:51.817] [info] Total time: 557.630 seconds

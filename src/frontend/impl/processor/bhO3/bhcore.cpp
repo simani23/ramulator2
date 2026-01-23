@@ -34,11 +34,11 @@ BHO3Core::Trace::Trace(std::string file_path_str) {
       throw ConfigurationError("Trace {} format invalid!", file_path_str);
     }
     int bubble_count = std::stoi(tokens[0]);
-    Addr_t load_addr = std::stoll(tokens[1]);
+    Addr_t load_addr = std::stoull(tokens[1]);
 
     bool has_store = num_tokens == 2 ? false : true; 
     if (has_store) {
-      Addr_t store_addr = std::stoll(tokens[2]);
+      Addr_t store_addr = std::stoull(tokens[2]);
       m_trace.push_back({bubble_count, load_addr, store_addr});
     } else {
       m_trace.push_back({bubble_count, load_addr, -1});

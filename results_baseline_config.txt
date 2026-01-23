@@ -1,0 +1,5 @@
+[Ramulator::FlexProfTrace] [info] Loading FlexProf trace file traces/flexprof/lbm_combined.trace ...
+[Ramulator::FlexProfTrace] [info] Loaded 8000000 trace entries.
+Frontend:
+  impl: FlexProfTrace
+

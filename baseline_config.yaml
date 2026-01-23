@@ -1,7 +1,7 @@
-# FlexProf Native Configuration
+# Baseline Configuration
 # 
-# This configuration uses the FlexProfTrace frontend which reads
-# USIMM-format traces directly, preserving domain_id and R/W information.
+# This configuration uses the FlexProfTrace frontend with a standard
+# Generic controller (no FlexProf optimizations) for comparison.
 #
 # Trace format: <bubbles> R|W <hex_addr> [<pc>] <domain_id>
 
@@ -26,9 +26,6 @@ MemorySystem:
 
   Controller:
     impl: Generic
-    num_domains: 7
-    alteration: 4
-    pattern_file: ../flexprof/input/patterns/lbm.8pattern
     
     Scheduler:
       impl: FRFCFS

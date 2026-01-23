@@ -1,0 +1,59 @@
+# FlexProf Multi-Trace Configuration
+# 
+# This configuration uses the FlexProfMultiTrace frontend which reads
+# multiple standard ramulator2 traces (SimpleO3 format), where each
+# trace file represents a different security domain.
+#
+# This enables FlexProf's spatial isolation mechanisms:
+# - Per-domain read/write queues in the memory controller
+# - Pattern-based scheduling with domain-aware bank partitioning
+#
+# Trace format per file: <bubble_count> <addr> [<store_addr>]
+
+Frontend:
+  impl: FlexProfMultiTrace
+  clock_ratio: 8
+  max_requests: 10000000  # 0 = run until all traces complete once
+  scheduling_mode: round_robin  # round_robin or interleaved
+  
+  # Each trace file = one security domain
+  # Domain IDs are assigned based on file order (0-indexed)
+  traces:
+    - traces/domain0.trace   # Domain 0
+    - traces/domain1.trace   # Domain 1
+    - traces/domain2.trace   # Domain 2
+    - traces/domain3.trace   # Domain 3
+    - traces/domain4.trace   # Domain 4
+    - traces/domain5.trace   # Domain 5
+    - traces/domain6.trace   # Domain 6
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR4
+    org:
+      preset: DDR4_8Gb_x8
+      channel: 1
+      rank: 8
+    timing:
+      preset: DDR4_2400R
+
+  Controller:
+    impl: FlexProf
+    num_domains: 7
+    alteration: 4
+    pattern_file: ../flexprof/input/patterns/lbm.8pattern
+    
+    Scheduler:
+      impl: FlexProf
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 4
+    plugins:
+
+  AddrMapper:
+    impl: RoBaRaCoCh
