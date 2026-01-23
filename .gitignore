@@ -4,3 +4,5 @@ ext/
 ramulator2
 *.so
 autobuild.sh
+results_flexprof_config.txt
+traces/
