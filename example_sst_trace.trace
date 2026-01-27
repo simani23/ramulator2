@@ -1,0 +1,90 @@
+# SST-format memory trace for FlexProf testing
+# Format: <R|W> <address> <domain_id>
+#
+# This trace simulates 4 domains with different read/write patterns:
+# - Domain 0: Read-heavy workload (web server)
+# - Domain 1: Write-heavy workload (database)
+# - Domain 2: Balanced workload (computation)
+# - Domain 3: Burst workload (streaming)
+
+# Domain 0: Read-heavy (web server pattern)
+R 0x10000000 0
+R 0x10001000 0
+R 0x10002000 0
+W 0x10003000 0
+R 0x10004000 0
+R 0x10005000 0
+
+# Domain 1: Write-heavy (database pattern)
+W 0x20000000 1
+W 0x20001000 1
+R 0x20002000 1
+W 0x20003000 1
+W 0x20004000 1
+W 0x20005000 1
+
+# Domain 2: Balanced (computation pattern)
+R 0x30000000 2
+W 0x30001000 2
+R 0x30002000 2
+W 0x30003000 2
+R 0x30004000 2
+W 0x30005000 2
+
+# Domain 3: Burst reads (streaming pattern)
+R 0x40000000 3
+R 0x40001000 3
+R 0x40002000 3
+R 0x40003000 3
+R 0x40004000 3
+R 0x40005000 3
+
+# Interleaved requests across all domains
+R 0x10006000 0
+W 0x20006000 1
+R 0x30006000 2
+R 0x40006000 3
+
+W 0x10007000 0
+W 0x20007000 1
+W 0x30007000 2
+R 0x40007000 3
+
+R 0x10008000 0
+R 0x20008000 1
+R 0x30008000 2
+R 0x40008000 3
+
+# More domain 0 requests (to test scheduling)
+R 0x10010000 0
+R 0x10011000 0
+R 0x10012000 0
+R 0x10013000 0
+W 0x10014000 0
+
+# More domain 1 requests
+W 0x20010000 1
+W 0x20011000 1
+W 0x20012000 1
+R 0x20013000 1
+W 0x20014000 1
+
+# More domain 2 requests
+R 0x30010000 2
+W 0x30011000 2
+R 0x30012000 2
+W 0x30013000 2
+R 0x30014000 2
+
+# More domain 3 requests
+R 0x40010000 3
+R 0x40011000 3
+R 0x40012000 3
+R 0x40013000 3
+R 0x40014000 3
+
+# Final batch
+R 0x10020000 0
+W 0x20020000 1
+R 0x30020000 2
+R 0x40020000 3

@@ -1,0 +1,86 @@
+# FlexProf Dynamic Controller Configuration
+# 
+# This configuration uses the FlexProfDynamic controller which implements
+# runtime-adaptable turn-based domain scheduling for memory controller isolation.
+#
+# Key Features:
+# - Per-domain read/write queues for temporal isolation
+# - Dynamic per-domain service turn allocation (adaptable at runtime)
+# - Dynamic read/write scheduling bias per domain (adaptable at runtime)
+# - Turn-based round-robin scheduling across domains
+#
+# SST Integration:
+# - SST provides: domain_id (via source_id), read/write type, address
+# - Controller implements: IFlexProfDynamicConfig interface for runtime tuning
+#
+# Trace format per file: <bubble_count> <addr> [<store_addr>]
+
+Frontend:
+  impl: FlexProfMultiTrace
+  clock_ratio: 8
+  max_requests: 10000000  # 0 = run until all traces complete once
+  scheduling_mode: round_robin  # round_robin or interleaved
+  
+  # Each trace file = one security domain
+  # Domain IDs are assigned based on file order (0-indexed)
+  traces:
+    - example_inst_domain0.trace   # Domain 0
+    - example_inst_domain1.trace   # Domain 1
+    - example_inst_domain2.trace   # Domain 2
+    - example_inst_domain3.trace   # Domain 3
+    - example_inst_domain4.trace   # Domain 4
+    - example_inst_domain5.trace   # Domain 5
+    - example_inst_domain6.trace   # Domain 6
+    - example_inst_domain7.trace   # Domain 7
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR4
+    org:
+      preset: DDR4_8Gb_x8
+      channel: 1
+      rank: 2
+    timing:
+      preset: DDR4_2400R
+
+  Controller:
+    impl: FlexProfDynamic
+    
+    # Number of security domains (VMs, tenants, etc.)
+    num_domains: 8
+    
+    # Default turns per domain (can be overridden per-domain below)
+    default_turn_allocation: 1
+    
+    # Default read/write bias (0.0 = all writes, 1.0 = all reads)
+    # 0.6 = 60% read turns, 40% write turns
+    default_rw_bias: 0.6
+    
+    # Per-domain queue size (separate read/write queues per domain)
+    queue_size: 64
+    
+    # Automatic adaptation based on queue pressure
+    auto_adapt: false
+    adaptation_interval: 10000  # cycles between adaptation (0 = disabled)
+    
+    # Optional: Per-domain turn allocations (overrides default)
+    # Higher allocation = more bandwidth for that domain
+    # domain_turn_allocations: [2, 1, 1, 1, 1, 1, 1, 1]
+    
+    # Optional: Per-domain R/W biases (overrides default)
+    # Tailor to each domain's workload characteristics
+    # domain_rw_biases: [0.7, 0.5, 0.6, 0.4, 0.6, 0.5, 0.6, 0.5]
+    
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 4
+
+  AddrMapper:
+    impl: RoBaRaCoCh

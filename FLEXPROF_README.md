@@ -4,143 +4,239 @@ This guide explains how to build and run FlexProf (a secure DRAM memory controll
 
 ## Overview
 
-FlexProf uses **offline profiling** to determine the optimal read/write ratio for each workload, then schedules memory requests according to a pre-computed pattern that maximizes performance while maintaining security isolation between domains.
+FlexProf provides **memory-controller-level temporal isolation** between security domains (VMs, tenants, containers, etc.) to prevent timing-based side-channel attacks. It achieves this through per-domain request queues and turn-based scheduling.
 
-### Key Components
+This repository includes **three FlexProf controller implementations** with different scheduling strategies:
 
-| Component | File | Description |
-|-----------|------|-------------|
-| FlexProf Controller | `src/dram_controller/impl/flexprof_controller.cpp` | Per-domain queues + pattern-based scheduling |
-| FlexProf Scheduler | `src/dram_controller/impl/scheduler/flexprof_scheduler.cpp` | FRFCFS fallback scheduler |
-| **FlexProf Trace Frontend** | `src/frontend/impl/memory_trace/flexprof_trace.cpp` | **Native USIMM trace reader** |
-| **FlexProf Multi-Trace** | `src/frontend/impl/memory_trace/flexprof_multi_trace.cpp` | **Multiple ramulator2 traces (1 per domain)** |
-| **FlexProf LoadStore** | `src/frontend/impl/memory_trace/flexprof_loadstore_trace.cpp` | **LD/ST traces with domain IDs** |
-| Trace Converter (Native) | `convert_flexprof_traces_v2.py` | Converts with domain_id preservation |
-| Trace Converter (Legacy) | `convert_flexprof_traces.py` | Converts to SimpleO3 format (lossy) |
-| Config Template (Native) | `flexprof_native_config.yaml` | **Recommended configuration** |
-| Config Template (Multi-Trace) | `flexprof_multitrace_config.yaml` | Multiple ramulator2 traces |
-| Config Template (LoadStore) | `flexprof_loadstore_config.yaml` | LD/ST traces with domains |
-| Config Template (Legacy) | `flexprof_config.yaml` | SimpleO3-based configuration |
+| Controller | Description | Use Case |
+|------------|-------------|----------|
+| `FlexProf` | Original pattern-based scheduling from offline profiling | Research reproduction, known workloads |
+| `FlexProfStatic` | Static turn allocation configured at startup | Predictable workloads, strict isolation |
+| `FlexProfDynamic` | Runtime-adaptable scheduling with optional auto-tuning | SST integration, varying workloads |
 
 ---
 
-## Trace Format Comparison
+## FlexProf Controller Implementations
 
-### FlexProf (USIMM) Native Format
+### 1. FlexProf (Pattern-Based) - Original Implementation
 
+The original FlexProf controller uses **offline profiling** to determine the optimal read/write scheduling pattern for each workload. A pattern file (`.8pattern`) specifies which domain, operation type, and bank to serve at each scheduling turn.
+
+**Key Characteristics:**
+- Pre-computed scheduling pattern from offline profiling
+- Pattern specifies: `<domain_id> <operation> <bank>` per turn
+- Bank partitioning for spatial isolation
+- Fixed turn length (11 cycles for reads, 12 cycles for writes)
+
+**Configuration:**
+
+```yaml
+Controller:
+  impl: FlexProf
+  num_domains: 7                                    # Number of security domains
+  alteration: 4                                      # Bank rotation factor
+  pattern_file: ../flexprof/input/patterns/lbm.8pattern  # Required: pattern file
+  
+  Scheduler:
+    impl: FlexProf
 ```
-<non_mem_ops> R <hex_addr> <pc> <domain_id>   # Read
-<non_mem_ops> W <hex_addr> <domain_id>        # Write
+
+**Pattern File Format:**
+```
+<domain_id> <operation> <bank>
+```
+- `domain_id`: 0 to num_domains-1
+- `operation`: 0 = Read, 1 = Write
+- `bank`: Target bank (0 to alteration-1)
+
+**Example pattern file:**
+```
+0 0 0    # Domain 0, Read, Bank 0
+1 0 1    # Domain 1, Read, Bank 1
+2 0 2    # Domain 2, Read, Bank 2
+0 1 3    # Domain 0, Write, Bank 3
 ```
 
-**Example:**
-```
-0 W 0x19ea075380 2           # 0 bubbles, Write to addr, domain 2
-72 R 0x15009ca3c0 0x6bb3c0 2 # 72 bubbles, Read from addr, PC, domain 2
-```
-
-### Field Meanings
-
-| Field | Meaning | Used By |
-|-------|---------|---------|
-| `non_mem_ops` | CPU cycles before this memory op | Timing simulation |
-| `R/W` | Read or Write operation | **Queue selection (critical!)** |
-| `hex_addr` | Physical memory address | Address mapping |
-| `pc` | Program counter (reads only) | Unused in scheduling |
-| `domain_id` | Security domain (0-6 for 7 domains) | **Per-domain queue routing** |
-
-### How FlexProf Uses Domain IDs
-
-1. **Trace parsing**: `domain_id` extracted from each line
-2. **Queue routing**: Requests go to `domain_read_queues[domain_id]` or `domain_write_queues[domain_id]`
-3. **Pattern scheduling**: Pattern file specifies `<domain_id> <op> <bank>` per turn
-4. **Turn execution**: Only domain matching current pattern turn can issue requests
+**Config file:** `flexprof_config.yaml` or `flexprof_native_config.yaml`
 
 ---
 
-## FlexProf Spatial Isolation Mechanism
+### 2. FlexProfStatic - Static Turn-Based Scheduling
 
-FlexProf provides **controller-level spatial partitioning** to isolate memory access patterns between security domains. This prevents timing-based side-channel attacks while maintaining high memory bandwidth.
+The FlexProfStatic controller uses **static pre-configured** turn allocations and read/write biases. Parameters are set at startup and remain fixed throughout execution.
 
-### Per-Domain Queues
+**Key Characteristics:**
+- Turn schedule computed once at initialization
+- Per-domain turn allocation (more turns = more bandwidth)
+- Per-domain R/W bias (ratio of read vs write turns)
+- Deterministic, repeating schedule
+- No runtime adaptation
 
-The FlexProf controller maintains separate read and write queues for each security domain:
+**Configuration:**
 
+```yaml
+Controller:
+  impl: FlexProfStatic
+  
+  num_domains: 4                    # Number of security domains
+  default_turn_allocation: 1        # Default turns per domain
+  default_rw_bias: 0.5              # Default read/write bias (0.0-1.0)
+  queue_size: 64                    # Per-domain queue size
+  
+  # Static per-domain turn allocations (higher = more bandwidth)
+  domain_turn_allocations: [2, 1, 1, 2]
+  
+  # Static per-domain R/W biases
+  # 0.0 = all writes, 0.5 = balanced, 1.0 = all reads
+  domain_rw_biases: [0.8, 0.3, 0.5, 1.0]
+  
+  Scheduler:
+    impl: FRFCFS
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    FlexProf Controller                       │
-├─────────────────────────────────────────────────────────────┤
-│  Domain 0:  [Read Queue 0]  [Write Queue 0]                 │
-│  Domain 1:  [Read Queue 1]  [Write Queue 1]                 │
-│  Domain 2:  [Read Queue 2]  [Write Queue 2]                 │
-│  ...                                                         │
-│  Domain N:  [Read Queue N]  [Write Queue N]                 │
-├─────────────────────────────────────────────────────────────┤
-│              Pattern-Based Scheduler                         │
-│    ┌──────────────────────────────────────────────────┐     │
-│    │ Turn 0: Domain 0, Read,  Bank 0                  │     │
-│    │ Turn 1: Domain 1, Read,  Bank 1                  │     │
-│    │ Turn 2: Domain 2, Write, Bank 2                  │     │
-│    │ ...                                               │     │
-│    └──────────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │   DRAM Banks    │
-                    │  (Partitioned)  │
-                    └─────────────────┘
-```
 
-### How Spatial Partitioning Works
+**How the Schedule is Built:**
 
-1. **Request Routing**: Incoming requests are routed to domain-specific queues based on `source_id` (domain ID)
-2. **Time-Division Scheduling**: The pattern file defines which domain can access which bank at each time slot
-3. **Bank Alternation**: The `alteration` parameter controls how banks rotate between domains
-4. **No Cross-Domain Interference**: Domains cannot observe each other's memory access patterns
+With `allocations = [2, 1, 1, 2]` and `biases = [0.8, 0.3, 0.5, 1.0]`:
 
-### Key Configuration Parameters
+| Turn | Domain | Type | Explanation |
+|------|--------|------|-------------|
+| 0 | 0 | Read | Domain 0 gets 2 turns, 80% reads |
+| 1 | 0 | Read | Domain 0's second turn |
+| 2 | 1 | Write | Domain 1 gets 1 turn, 30% reads → write |
+| 3 | 2 | Read | Domain 2 gets 1 turn, 50% → alternates |
+| 4 | 3 | Read | Domain 3 gets 2 turns, 100% reads |
+| 5 | 3 | Read | Domain 3's second turn |
+| (repeats) | | | |
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `num_domains` | Number of security domains | 7 |
-| `alteration` | Bank rotation factor | 4 |
-| `pattern_file` | Path to scheduling pattern | required |
+**Config file:** `flexprof_static_config.yaml`
 
 ---
 
-## Trace Frontend Options
+### 3. FlexProfDynamic - Runtime-Adaptable Scheduling
+
+The FlexProfDynamic controller supports **runtime configuration** of scheduling parameters. It can adapt to changing workload characteristics either through an API (for SST integration) or automatically based on queue pressure.
+
+**Key Characteristics:**
+- Turn allocations and R/W biases can change at runtime
+- Implements `IFlexProfDynamicConfig` interface for external control
+- Optional automatic adaptation based on queue pressure
+- Designed for SST integration
+
+**Configuration:**
+
+```yaml
+Controller:
+  impl: FlexProfDynamic
+  
+  num_domains: 8                    # Number of security domains
+  default_turn_allocation: 1        # Default turns per domain
+  default_rw_bias: 0.6              # Default read bias (60% reads)
+  queue_size: 64                    # Per-domain queue size
+  
+  # Automatic adaptation (optional)
+  auto_adapt: false                 # Enable queue pressure-based adaptation
+  adaptation_interval: 10000        # Cycles between adaptations (0 = disabled)
+  
+  # Initial per-domain configuration (optional, can be changed at runtime)
+  # domain_turn_allocations: [2, 1, 1, 1, 1, 1, 1, 1]
+  # domain_rw_biases: [0.7, 0.5, 0.6, 0.4, 0.6, 0.5, 0.6, 0.5]
+  
+  Scheduler:
+    impl: FRFCFS
+```
+
+**Runtime Configuration API (for SST):**
+
+```cpp
+// Get the controller and cast to configuration interface
+auto* controller = memory_system->get_controller();
+if (auto* flexprof = dynamic_cast<IFlexProfDynamicConfig*>(controller)) {
+    // Set turn allocation for domain 0 (more turns = more bandwidth)
+    flexprof->set_domain_turn_allocation(0, 3);
+    
+    // Set R/W bias for domain 0 (0.8 = 80% read turns)
+    flexprof->set_domain_rw_bias(0, 0.8);
+    
+    // Query current configuration
+    int turns = flexprof->get_domain_turn_allocation(0);
+    float bias = flexprof->get_domain_rw_bias(0);
+    
+    // Monitor queue pressure
+    auto [read_q, write_q] = flexprof->get_domain_queue_occupancy(0);
+}
+```
+
+**Auto-Adaptation:**
+
+When `auto_adapt: true`, the controller automatically:
+1. Monitors queue pressure per domain
+2. Redistributes turn allocations based on demand
+3. Adjusts R/W biases based on read vs write queue depths
+
+**Config file:** `flexprof_dynamic_config.yaml`
+
+---
+
+## Trace Formats and Frontends
 
 FlexProf supports multiple trace formats through different frontends:
 
-| Frontend | Format | Domain Assignment | Use Case |
+| Frontend | Format | Domain Assignment | Best For |
 |----------|--------|-------------------|----------|
-| `FlexProfTrace` | USIMM native | From trace file | Original FlexProf traces |
-| `FlexProfMultiTrace` | SimpleO3 | Per trace file | Multiple standard ramulator2 traces |
-| `FlexProfLoadStoreTrace` | LD/ST | Optional per-entry | Single trace with domain tags |
-| `SimpleO3` | SimpleO3 | Per core/file | Legacy (uses core ID as domain) |
+| `SSTTrace` | R/W addr domain | Per-entry in trace | SST integration |
+| `FlexProfTrace` | USIMM native | Per-entry in trace | Original FlexProf traces |
+| `FlexProfMultiTrace` | SimpleO3 | Per trace file | Multiple standard traces |
+| `FlexProfLoadStoreTrace` | LD/ST format | Optional per-entry | Mixed workloads |
 
 ---
 
-## Using Regular Ramulator2 Traces with FlexProf
+### SSTTrace Frontend (Recommended for SST Integration)
 
-### Option 1: FlexProfMultiTrace (Multiple Trace Files)
+The simplest format for SST integration. Each entry specifies operation, address, and domain.
 
-Use this when you have separate trace files and want each file to represent a different security domain.
-
-```yaml
-Frontend:
-  impl: FlexProfMultiTrace
-  clock_ratio: 8
-  max_requests: 10000000
-  scheduling_mode: round_robin  # or interleaved
-  traces:
-    - traces/domain0.trace   # Domain 0
-    - traces/domain1.trace   # Domain 1
-    - traces/domain2.trace   # Domain 2
+**Trace Format:**
+```
+<R|W> <address> <domain_id>
 ```
 
-**Trace format (per file):**
+**Example trace (`example_sst_trace.trace`):**
+```
+# Domain 0: Read-heavy (web server)
+R 0x10000000 0
+R 0x10001000 0
+W 0x10003000 0
+
+# Domain 1: Write-heavy (database)
+W 0x20000000 1
+W 0x20001000 1
+R 0x20002000 1
+
+# Domain 2: Balanced (computation)
+R 0x30000000 2
+W 0x30001000 2
+```
+
+**Configuration:**
+```yaml
+Frontend:
+  impl: SSTTrace
+  clock_ratio: 8
+  max_requests: 0         # 0 = run until trace completes
+  wrap_trace: false       # Don't loop the trace
+  path: example_sst_trace.trace
+```
+
+**Supported operation formats:** `R`, `W`, `READ`, `WRITE`, `LD`, `ST` (case-insensitive)
+
+**Config file:** `flexprof_static_config.yaml`
+
+---
+
+### FlexProfMultiTrace Frontend
+
+Uses multiple standard ramulator2 traces (SimpleO3 format), where each trace file represents a different security domain.
+
+**Trace Format (per file):**
 ```
 <bubble_count> <addr>                    # Read only
 <bubble_count> <load_addr> <store_addr>  # Read + Write
@@ -153,25 +249,61 @@ Frontend:
 12 0x7fff0000
 ```
 
-### Option 2: FlexProfLoadStoreTrace (Single Trace with Domain IDs)
-
-Use this when you have a single trace file with domain information embedded.
-
+**Configuration:**
 ```yaml
 Frontend:
-  impl: FlexProfLoadStoreTrace
+  impl: FlexProfMultiTrace
   clock_ratio: 8
   max_requests: 10000000
-  default_domain: 0
-  path: traces/mixed_domains.trace
+  scheduling_mode: round_robin  # or interleaved
+  traces:
+    - example_inst_domain0.trace   # Domain 0
+    - example_inst_domain1.trace   # Domain 1
+    - example_inst_domain2.trace   # Domain 2
+    # ... one file per domain
 ```
 
-**Trace format:**
+**Config file:** `flexprof_multitrace_config.yaml` or `flexprof_dynamic_config.yaml`
+
+---
+
+### FlexProfTrace Frontend (Native USIMM Format)
+
+Reads original FlexProf/USIMM format traces with embedded domain IDs.
+
+**Trace Format:**
+```
+<non_mem_ops> R <hex_addr> <pc> <domain_id>   # Read
+<non_mem_ops> W <hex_addr> <domain_id>        # Write
+```
+
+**Example:**
+```
+0 W 0x19ea075380 2           # 0 bubbles, Write to addr, domain 2
+72 R 0x15009ca3c0 0x6bb3c0 2 # 72 bubbles, Read from addr, PC, domain 2
+```
+
+**Configuration:**
+```yaml
+Frontend:
+  impl: FlexProfTrace
+  clock_ratio: 8
+  max_requests: 10000000
+  path: traces/flexprof/lbm_combined.trace
+```
+
+**Config file:** `flexprof_native_config.yaml`
+
+---
+
+### FlexProfLoadStoreTrace Frontend
+
+Supports standard LD/ST format with optional domain IDs per entry.
+
+**Trace Format:**
 ```
 LD <addr> [<domain_id>]    # Load (read)
 ST <addr> [<domain_id>]    # Store (write)
-R <addr> [<domain_id>]     # Alternative read syntax
-W <addr> [<domain_id>]     # Alternative write syntax
 ```
 
 **Example:**
@@ -179,62 +311,25 @@ W <addr> [<domain_id>]     # Alternative write syntax
 LD 0x7fff1234 0      # Read to domain 0
 ST 0x7fff5678 0      # Write to domain 0
 LD 0x8fff0000 1      # Read to domain 1
-LD 0x9fff0000 2      # Read to domain 2
-ST 0x9fff1000 2      # Write to domain 2
 ```
+
+**Configuration:**
+```yaml
+Frontend:
+  impl: FlexProfLoadStoreTrace
+  clock_ratio: 8
+  max_requests: 10000000
+  default_domain: 0       # Domain for entries without explicit domain
+  path: traces/mixed_domains.trace
+```
+
+**Config file:** `flexprof_loadstore_config.yaml`
 
 ---
 
-## Two Approaches: Native vs SimpleO3
+## Quick Start Guide
 
-### Approach 1: Native FlexProf Traces (RECOMMENDED)
-
-Uses `FlexProfTrace` frontend to read USIMM format directly:
-
-```yaml
-Frontend:
-  impl: FlexProfTrace
-  path: traces/flexprof/lbm_combined.trace
-```
-
-**Advantages:**
-- ✅ Preserves domain_id from trace
-- ✅ Preserves R/W distinction
-- ✅ Single trace file for all domains
-- ✅ Accurate representation of original FlexProf
-
-**Trace conversion:**
-```bash
-python3 convert_flexprof_traces_v2.py --mode native \
-    --input ../flexprof/input/domains/lbm \
-    --output traces/flexprof/lbm_combined.trace
-```
-
-### Approach 2: SimpleO3 Format (Legacy)
-
-Uses standard SimpleO3 frontend with separate trace per domain:
-
-```yaml
-Frontend:
-  impl: SimpleO3
-  traces:
-    - traces/flexprof/lbm_domain0.trace  # core 0 = domain 0
-    - traces/flexprof/lbm_domain1.trace  # core 1 = domain 1
-    ...
-```
-
-**Limitations:**
-- ⚠️ Domain ID derived from core/file index
-- ⚠️ Loses explicit R/W distinction
-- ⚠️ Requires 7 separate trace files
-
----
-
-## Prerequisites
-
-1. **C++20 compiler** (g++-12 or clang++-15)
-2. **CMake** (3.14+)
-3. **Git LFS** (for FlexProf pattern files)
+### Prerequisites
 
 ```bash
 # Install dependencies (Ubuntu)
@@ -242,302 +337,152 @@ sudo apt update
 sudo apt install g++-12 cmake git-lfs
 ```
 
----
-
-## Step 1: Build Ramulator2 with FlexProf
+### Build
 
 ```bash
-cd /home/simmi/research/ramulator2
-
-# Create build directory
-mkdir -p build
-cd build
-
-# Configure and build
+cd /path/to/ramulator2
+mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-
-# Copy executable to root
 cp ramulator2 ../
-cd ..
 ```
 
----
+### Running FlexProf Simulations
 
-## Step 2: Prepare FlexProf Pattern Files
+#### Scenario 1: SST-Style Traces with Static Scheduling
 
-The pattern files are stored in Git LFS in the flexprof repository:
+Best for: Testing isolation with predictable scheduling
 
 ```bash
-cd /home/simmi/research/flexprof
+./ramulator2 -f flexprof_static_config.yaml
+```
 
-# Install and pull LFS files
-git lfs install
+Uses `SSTTrace` frontend with `FlexProfStatic` controller. The example trace (`example_sst_trace.trace`) simulates 4 domains with different workload patterns.
+
+#### Scenario 2: Multi-Domain Traces with Dynamic Scheduling
+
+Best for: SST integration development, adaptive workloads
+
+```bash
+./ramulator2 -f flexprof_dynamic_config.yaml
+```
+
+Uses `FlexProfMultiTrace` frontend with `FlexProfDynamic` controller. Requires trace files for each domain (`example_inst_domain0.trace` through `example_inst_domain7.trace`).
+
+#### Scenario 3: Original FlexProf with Pattern Files
+
+Best for: Reproducing FlexProf research results
+
+```bash
+# First, prepare pattern files from flexprof repository
+cd ../flexprof
 git lfs pull
 
-# Verify patterns are available
-ls -la input/patterns/*.8pattern
-```
-
-### Available Benchmarks
-
-| Category | Benchmarks |
-|----------|------------|
-| SPEC CPU | bwaves, cactuBSSN, cam4, deepsjeng, fotonik3d, gcc, lbm, mcf, namd, omnetpp, perl, roms, xalanc |
-| NPB | bt, cg, dc, ep, ft, is, lu, mg, sp, ua |
-| Mixes | runmix1-10 |
-
----
-
-## Step 3: Convert Traces to Ramulator2 Format
-
-### Option A: Native Format (Recommended)
-
-```bash
-cd /home/simmi/research/ramulator2
-mkdir -p traces/flexprof
-
-# Convert single benchmark (all domains combined)
+# Convert traces
+cd ../ramulator2
 python3 convert_flexprof_traces_v2.py --mode native \
     --input ../flexprof/input/domains/lbm \
-    --output traces/flexprof/lbm_combined.trace \
-    --max-lines 1000000
+    --output traces/flexprof/lbm_combined.trace
 
-# Convert a mix workload
-python3 convert_flexprof_traces_v2.py --mode native --mix \
-    --input ../flexprof/input/mix4 \
-    --output traces/flexprof/mix4_combined.trace \
-    --max-lines 1000000
-```
-
-### Option B: SimpleO3 Format (Legacy)
-
-```bash
-cd /home/simmi/research/ramulator2
-mkdir -p traces/flexprof
-
-# Convert lbm benchmark (separate file per domain)
-python3 convert_flexprof_traces_v2.py --mode simpleo3 \
-    --input ../flexprof/input/domains/lbm \
-    --output traces/flexprof \
-    --benchmark lbm \
-    --max-lines 1000000
-```
-
-### Batch Conversion (All Benchmarks - Native)
-
-```bash
-#!/bin/bash
-cd /home/simmi/research/ramulator2
-mkdir -p traces/flexprof
-
-for benchmark in lbm mcf gcc namd perl bwaves cactuBSSN cam4 cg dc deepsjeng ep fotonik3d ft is lu mg omnetpp roms sp ua xalanc bt; do
-    if [ -d "../flexprof/input/domains/$benchmark" ]; then
-        python3 convert_flexprof_traces_v2.py --mode native \
-            --input "../flexprof/input/domains/$benchmark" \
-            --output "traces/flexprof/${benchmark}_combined.trace" \
-            --max-lines 1000000
-        echo "Converted: $benchmark"
-    fi
-done
-```
-
----
-
-## Step 4: Run FlexProf Simulation
-
-### Native Mode (Recommended)
-
-```bash
-cd /home/simmi/research/ramulator2
-
-# Using native FlexProf trace format
+# Run simulation
 ./ramulator2 -f flexprof_native_config.yaml
 ```
 
-### SimpleO3 Mode (Legacy)
+#### Scenario 4: Using Standard Ramulator2 Traces
+
+Best for: Using existing ramulator2 benchmarks with FlexProf isolation
 
 ```bash
-./ramulator2 -f flexprof_config.yaml
+./ramulator2 -f flexprof_multitrace_config.yaml
 ```
 
-### Custom Configuration (Native)
-
-Edit `flexprof_native_config.yaml`:
-
-```yaml
-Frontend:
-  impl: FlexProfTrace
-  clock_ratio: 8
-  max_requests: 10000000
-  path: traces/flexprof/lbm_combined.trace  # Combined trace with domain IDs
-
-MemorySystem:
-  Controller:
-    impl: FlexProf
-    num_domains: 7                                    # Number of security domains
-    alteration: 4                                      # Bank rotation factor
-    pattern_file: ../flexprof/input/patterns/lbm.8pattern  # Pattern file path
-```
-
-### Running Different Benchmarks
-
-```bash
-# Run mcf benchmark
-./ramulator2 -c "
-Frontend:
-  impl: SimpleO3
-  clock_ratio: 8
-  num_expected_insts: 10000000
-  traces:
-    - traces/flexprof/mcf_domain0.trace
-    - traces/flexprof/mcf_domain1.trace
-    - traces/flexprof/mcf_domain2.trace
-    - traces/flexprof/mcf_domain3.trace
-    - traces/flexprof/mcf_domain4.trace
-    - traces/flexprof/mcf_domain5.trace
-    - traces/flexprof/mcf_domain6.trace
-  Translation:
-    impl: RandomTranslation
-    max_addr: 2147483648
-MemorySystem:
-  impl: GenericDRAM
-  clock_ratio: 3
-  DRAM:
-    impl: DDR4
-    org:
-      preset: DDR4_8Gb_x8
-      channel: 1
-      rank: 8
-    timing:
-      preset: DDR4_2400R
-  Controller:
-    impl: FlexProf
-    num_domains: 7
-    alteration: 4
-    pattern_file: ../flexprof/input/patterns/mcf.8pattern
-    Scheduler:
-      impl: FlexProf
-    RefreshManager:
-      impl: AllBank
-    RowPolicy:
-      impl: ClosedRowPolicy
-      cap: 4
-  AddrMapper:
-    impl: RoBaRaCoCh
-"
-```
+Configure trace paths in the YAML file to point to your existing traces.
 
 ---
 
-## Step 5: Compare with Baseline
+## Controller Comparison
 
-To compare FlexProf performance against a baseline (non-secure) scheduler:
-
-### Baseline Configuration
-
-```yaml
-# baseline_config.yaml
-MemorySystem:
-  Controller:
-    impl: Generic          # Use generic controller instead of FlexProf
-    Scheduler:
-      impl: FRFCFS         # Standard FR-FCFS scheduler
-```
-
-### Run Comparison
-
-```bash
-# Run FlexProf
-./ramulator2 -f flexprof_config.yaml > results_flexprof.txt
-
-# Run Baseline
-./ramulator2 -f baseline_config.yaml > results_baseline.txt
-
-# Compare cycles
-grep "total_cycles" results_flexprof.txt results_baseline.txt
-```
+| Feature | FlexProf | FlexProfStatic | FlexProfDynamic |
+|---------|----------|----------------|-----------------|
+| **Scheduling** | Pattern file | Pre-computed at init | Runtime adaptable |
+| **Turn allocation** | From pattern | Static config | Configurable at runtime |
+| **R/W bias** | From pattern | Static config | Configurable at runtime |
+| **Bank partitioning** | Yes | No | No |
+| **SST integration** | Limited | Good | Best |
+| **Auto-adaptation** | No | No | Yes (optional) |
+| **Pattern file required** | Yes | No | No |
+| **Use case** | Research | Predictable workloads | Production/SST |
 
 ---
 
-## Configuration Parameters
+## Configuration Files Summary
 
-### FlexProf Controller Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `num_domains` | int | 7 | Number of security domains |
-| `alteration` | int | 4 | Bank rotation factor for pattern |
-| `pattern_file` | string | required | Path to .8pattern file |
-
-### Pattern File Format
-
-```
-<domain_id> <operation> <bank>
-```
-
-- `domain_id`: 0 to num_domains-1
-- `operation`: 0 = Read, 1 = Write
-- `bank`: Bank to target (0 to alteration-1)
-
-Example:
-```
-0 0 0    # Domain 0, Read, Bank 0
-1 0 1    # Domain 1, Read, Bank 1
-2 0 2    # Domain 2, Read, Bank 2
-0 1 3    # Domain 0, Write, Bank 3
-```
+| Config File | Controller | Frontend | Description |
+|-------------|------------|----------|-------------|
+| `flexprof_config.yaml` | FlexProf | SimpleO3 | Legacy: 7 separate trace files |
+| `flexprof_native_config.yaml` | FlexProf | FlexProfTrace | Native USIMM format |
+| `flexprof_static_config.yaml` | FlexProfStatic | SSTTrace | SST format with static scheduling |
+| `flexprof_dynamic_config.yaml` | FlexProfDynamic | FlexProfMultiTrace | Dynamic scheduling |
+| `flexprof_multitrace_config.yaml` | FlexProf | FlexProfMultiTrace | Multiple SimpleO3 traces |
+| `flexprof_loadstore_config.yaml` | FlexProf | FlexProfLoadStoreTrace | LD/ST format |
 
 ---
 
-## Trace Format Reference
+## Example Traces
 
-### FlexProf (USIMM) Format
-
-```
-<non_mem_ops> R <hex_addr> <pc> <domain_id>
-<non_mem_ops> W <hex_addr> <domain_id>
-```
-
-### Ramulator2 SimpleO3 Format
-
-```
-<non_mem_ops> <addr>
-```
+| Trace File | Format | Description |
+|------------|--------|-------------|
+| `example_sst_trace.trace` | SSTTrace | 4 domains with varied workload patterns |
+| `example_inst_domain[0-7].trace` | SimpleO3 | 8 domain traces for multi-trace testing |
+| `example_inst.trace` | SimpleO3 | Single standard ramulator2 trace |
 
 ---
 
-## Troubleshooting
+## Spatial Isolation Mechanism
 
-### Pattern file not found
+All FlexProf controllers maintain **per-domain queues** for temporal isolation:
 
-```bash
-# Check pattern file exists
-ls -la ../flexprof/input/patterns/lbm.8pattern
-
-# If it shows "version https://git-lfs.github.com/spec/v1", run:
-cd ../flexprof && git lfs pull
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FlexProf Controller                       │
+├─────────────────────────────────────────────────────────────┤
+│  Domain 0:  [Read Queue 0]  [Write Queue 0]                 │
+│  Domain 1:  [Read Queue 1]  [Write Queue 1]                 │
+│  Domain 2:  [Read Queue 2]  [Write Queue 2]                 │
+│  ...                                                         │
+│  Domain N:  [Read Queue N]  [Write Queue N]                 │
+├─────────────────────────────────────────────────────────────┤
+│                    Turn-Based Scheduler                      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ Only the current turn's domain can issue requests   │    │
+│  │ → No cross-domain timing interference               │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### No traces found
+**Isolation Guarantees:**
+1. **Request routing**: Requests go to domain-specific queues
+2. **Turn-based access**: Only one domain can issue requests per turn
+3. **No cross-domain forwarding**: Write-to-read forwarding only within same domain
+4. **Predictable timing**: Turn lengths are deterministic
 
-```bash
-# Check traces were converted
-ls -la traces/flexprof/
+---
 
-# Re-run conversion
-python3 convert_flexprof_traces.py --input ../flexprof/input/domains/lbm --output traces/flexprof --benchmark lbm
-```
+## Statistics and Metrics
 
-### Build errors
+FlexProf controllers report these statistics:
 
-```bash
-# Clean and rebuild
-cd build
-rm -rf *
-cmake ..
-make -j$(nproc)
-```
+| Metric | Description |
+|--------|-------------|
+| `num_read_reqs_X` | Total read requests on channel X |
+| `num_write_reqs_X` | Total write requests on channel X |
+| `flexprof_*_total_turns_X` | Total scheduling turns completed |
+| `flexprof_*_read_turns_X` | Read-prioritized turns |
+| `flexprof_*_write_turns_X` | Write-prioritized turns |
+| `domain_Y_reads` | Reads issued for domain Y |
+| `domain_Y_writes` | Writes issued for domain Y |
+| `domain_Y_turns_served` | Turns served for domain Y |
+| `total_read_latency_X` | Total read latency (cycles) |
 
 ---
 
@@ -546,40 +491,66 @@ make -j$(nproc)
 ```
 ramulator2/
 ├── src/
-│   ├── dram_controller/impl/
-│   │   ├── flexprof_controller.cpp      # FlexProf controller (per-domain queues)
-│   │   └── scheduler/
-│   │       └── flexprof_scheduler.cpp   # FlexProf scheduler
+│   ├── dram_controller/
+│   │   ├── flexprof_dynamic.h              # Dynamic config interface
+│   │   └── impl/
+│   │       ├── flexprof_controller.cpp     # Original pattern-based
+│   │       ├── flexprof_static_controller.cpp   # Static turn-based
+│   │       └── flexprof_dynamic_controller.cpp  # Dynamic/adaptive
 │   └── frontend/impl/memory_trace/
-│       ├── flexprof_trace.cpp           # Native USIMM format reader
-│       ├── flexprof_multi_trace.cpp     # Multi-trace reader (1 file per domain)
-│       └── flexprof_loadstore_trace.cpp # LD/ST format with domain IDs
-├── traces/flexprof/                  # Converted traces (create this)
-├── flexprof_config.yaml             # Legacy SimpleO3 configuration
-├── flexprof_native_config.yaml      # Native USIMM configuration
-├── flexprof_multitrace_config.yaml  # Multi-trace configuration (NEW)
-├── flexprof_loadstore_config.yaml   # LoadStore configuration (NEW)
-├── convert_flexprof_traces.py       # Trace converter script
-└── FLEXPROF_README.md               # This file
-
-flexprof/
-├── input/
-│   ├── domains/<benchmark>/         # Original traces
-│   └── patterns/<benchmark>.8pattern # Profiled patterns
-└── profile/<benchmark>/             # Profiling results
+│       ├── flexprof_trace.cpp              # Native USIMM format
+│       ├── flexprof_multi_trace.cpp        # Multiple SimpleO3 traces
+│       ├── flexprof_loadstore_trace.cpp    # LD/ST format
+│       └── sst_trace.cpp                   # SST format
+├── flexprof_config.yaml                    # Legacy configuration
+├── flexprof_native_config.yaml             # Native USIMM configuration
+├── flexprof_static_config.yaml             # Static scheduling config
+├── flexprof_dynamic_config.yaml            # Dynamic scheduling config
+├── flexprof_multitrace_config.yaml         # Multi-trace config
+├── flexprof_loadstore_config.yaml          # LoadStore config
+├── example_sst_trace.trace                 # Example SST format trace
+├── example_inst_domain[0-7].trace          # Example per-domain traces
+├── convert_flexprof_traces.py              # Legacy trace converter
+├── convert_flexprof_traces_v2.py           # Native trace converter
+└── FLEXPROF_README.md                      # This file
 ```
 
 ---
 
-## Performance Metrics
+## Troubleshooting
 
-FlexProf reports these statistics:
+### Pattern file not found (FlexProf controller only)
 
-| Metric | Description |
-|--------|-------------|
-| `flexprof_pattern_turns_X` | Number of pattern cycles completed |
-| `domain_Y_reads` | Reads issued for domain Y |
-| `domain_Y_writes` | Writes issued for domain Y |
-| `total_read_latency_X` | Total read latency (cycles) |
-| `num_read_reqs_X` | Total read requests |
-| `num_write_reqs_X` | Total write requests |
+```bash
+# Check pattern file exists and is not LFS pointer
+ls -la ../flexprof/input/patterns/lbm.8pattern
+
+# If it shows "version https://git-lfs.github.com/spec/v1":
+cd ../flexprof && git lfs pull
+```
+
+### Domain ID out of range
+
+Ensure `num_domains` in the controller config matches your trace's domain IDs. Domain IDs should be 0 to (num_domains - 1).
+
+### No requests being scheduled
+
+1. Check that trace file paths are correct
+2. Verify trace format matches the frontend
+3. Check console output for parsing errors/warnings
+
+### Build errors
+
+```bash
+cd build
+rm -rf *
+cmake ..
+make -j$(nproc)
+```
+
+---
+
+## References
+
+- Original FlexProf paper: [FlexProf: Profiling-Based Memory Controller for Secure DRAM](https://link-to-paper)
+- Ramulator2 documentation: [GitHub Repository](https://github.com/CMU-SAFARI/ramulator2)

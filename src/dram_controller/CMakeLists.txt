@@ -9,6 +9,7 @@ target_sources(
   plugin.h
   refresh.h
   rowpolicy.h
+  flexprof_dynamic.h
 
   impl/bh_dram_controller.cpp
   impl/dummy_controller.cpp
@@ -23,6 +24,8 @@ target_sources(
   impl/scheduler/flexprof_scheduler.cpp
 
   impl/flexprof_controller.cpp
+  impl/flexprof_dynamic_controller.cpp
+  impl/flexprof_static_controller.cpp
 
   impl/refresh/all_bank_refresh.cpp
   
