@@ -36,7 +36,7 @@ Frontend:
   clock_ratio: 8
   max_requests: 0         # 0 = run until trace completes
   wrap_trace: false       # Don't loop the trace
-  path: example_sst_trace.trace
+  path: traces/static/all_domains_combined.trace #example_sst_trace.trace
 
 MemorySystem:
   impl: GenericDRAM
@@ -55,8 +55,7 @@ MemorySystem:
     impl: FlexProfStatic
     
     # Number of security domains
-    num_domains: 4
-    
+    num_domains: 8
     # Default turns per domain
     default_turn_allocation: 1
     
