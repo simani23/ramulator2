@@ -1,0 +1,66 @@
+[Ramulator::SSTTrace] [info] Loading SST-format trace file traces/static/read_heavy_domain2.trace ...
+[Ramulator::SSTTrace] [info]   Domain 2: 32 entries (29 reads, 3 writes)
+[Ramulator::SSTTrace] [info] Loaded 32 entries across 3 domains.
+Frontend:
+  impl: SSTTrace
+
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 3
+  total_num_read_requests: 29
+  memory_system_cycles: 12
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+
+
+  Controller:
+    impl: Generic
+    id: Channel 0
+    avg_read_latency_0: 0
+    read_row_misses_core_0: 0
+    write_row_hits_0: 0
+    read_row_misses_core_2: 6
+    read_queue_len_0: 131
+    write_row_conflicts_0: 0
+    write_row_misses_0: 0
+    read_row_hits_core_1: 0
+    read_row_hits_core_0: 0
+    read_row_conflicts_core_0: 0
+    queue_len_avg_0: 12.083333
+    read_row_conflicts_0: 0
+    read_row_misses_0: 6
+    row_conflicts_0: 0
+    priority_queue_len_0: 0
+    read_row_conflicts_core_1: 0
+    row_hits_0: 0
+    priority_queue_len_avg_0: 0
+    write_queue_len_avg_0: 1.16666663
+    read_row_misses_core_1: 0
+    read_row_hits_0: 0
+    read_row_hits_core_2: 0
+    write_queue_len_0: 14
+    row_misses_0: 6
+    read_row_conflicts_core_2: 0
+    read_latency_0: 0
+    num_read_reqs_0: 29
+    num_write_reqs_0: 3
+    num_other_reqs_0: 0
+    queue_len_0: 145
+    read_queue_len_avg_0: 10.916667
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+
+
+    RowPolicy:
+      impl: ClosedRowPolicy
+      num_close_reqs: 0
+
+
+
+[2026-01-28 01:28:35.399] [info] Simulation completed in 0s
+[2026-01-28 01:28:35.399] [info] Total time: 0.000 seconds

@@ -1,0 +1,56 @@
+# FlexProf Dynamic Controller Configuration
+# 
+# Uses the same SSTTrace frontend as other configs for fair comparison.
+# FlexProfDynamic implements runtime-adaptable turn-based domain scheduling.
+#
+# Trace format: <R|W> <address> <domain_id>
+
+Frontend:
+  impl: SSTTrace
+  clock_ratio: 8
+  max_requests: 0         # Run until trace completes
+  wrap_trace: false
+  path: example_sst_trace.trace
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR4
+    org:
+      preset: DDR4_8Gb_x8
+      channel: 1
+      rank: 2
+    timing:
+      preset: DDR4_2400R
+
+  Controller:
+    impl: FlexProfDynamic
+    
+    # Number of security domains (must cover all domain IDs in trace)
+    num_domains: 4
+    
+    # Default turns per domain (can be overridden per-domain)
+    default_turn_allocation: 1
+    
+    # Default read/write bias (0.0=all writes, 1.0=all reads)
+    default_rw_bias: 0.6
+    
+    # Per-domain queue size
+    queue_size: 64
+    
+    # Automatic adaptation based on queue pressure
+    auto_adapt: false
+    adaptation_interval: 10000  # cycles between adaptation (0 = disabled)
+    
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 4
+
+  AddrMapper:
+    impl: RoBaRaCoCh

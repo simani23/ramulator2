@@ -1,0 +1,91 @@
+[Ramulator::SSTTrace] [info] Loading SST-format trace file traces/static/domain1.trace ...
+[Ramulator::SSTTrace] [info]   Domain 1: 32 entries (22 reads, 10 writes)
+[Ramulator::SSTTrace] [info] Loaded 32 entries across 2 domains.
+[2026-01-28 01:39:21.496] [info] FlexProfDynamic: Initialized with 4 domains, auto_adapt=false
+Frontend:
+  impl: SSTTrace
+
+[2026-01-28 01:39:21.496] [info] FlexProfDynamic Controller 0 finalized:
+[2026-01-28 01:39:21.496] [info]   Total turns: 1, Read turns: 1, Write turns: 0, Idle turns: 0
+[2026-01-28 01:39:21.496] [info]   Adaptation events: 0
+[2026-01-28 01:39:21.496] [info]   Avg read latency: 0.00, Avg queue len: 15.33
+[2026-01-28 01:39:21.496] [info]   Row hits: 0, Row misses: 1, Row conflicts: 0
+[2026-01-28 01:39:21.496] [info]   Domain 1: 22 reads, 10 writes, 0 turns, final allocation=1, final bias=0.60
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 10
+  total_num_read_requests: 22
+  memory_system_cycles: 12
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+
+
+  Controller:
+    impl: FlexProfDynamic
+    id: Channel 0
+    domain_3_idle_turns: 0
+    domain_3_reads: 0
+    domain_1_turns_served: 0
+    domain_1_idle_turns: 0
+    domain_1_reads: 22
+    domain_0_idle_turns: 0
+    domain_0_writes: 0
+    domain_3_writes: 0
+    domain_0_reads: 0
+    domain_0_turns_served: 1
+    priority_queue_len_avg_0: 0
+    read_queue_len_avg_0: 10.916667
+    row_misses_0: 1
+    row_conflicts_0: 0
+    priority_queue_len_0: 0
+    domain_3_turns_served: 0
+    avg_read_latency_0: 0
+    domain_1_writes: 10
+    queue_len_avg_0: 15.333333
+    flexprof_dyn_adaptation_events_0: 0
+    flexprof_dyn_idle_turns_0: 0
+    domain_2_writes: 0
+    flexprof_dyn_write_turns_0: 0
+    flexprof_dyn_total_turns_0: 1
+    write_row_hits_0: 0
+    domain_2_turns_served: 0
+    read_queue_len_0: 131
+    flexprof_dyn_read_turns_0: 1
+    domain_2_idle_turns: 0
+    num_other_reqs_0: 0
+    num_write_reqs_0: 10
+    read_latency_0: 0
+    num_read_reqs_0: 22
+    read_row_hits_0: 0
+    read_row_hits_core_0: 0
+    read_row_conflicts_core_0: 0
+    read_row_hits_core_1: 0
+    read_row_misses_0: 1
+    read_row_conflicts_0: 0
+    write_row_misses_0: 0
+    write_row_conflicts_0: 0
+    row_hits_0: 0
+    read_row_conflicts_core_1: 0
+    domain_2_reads: 0
+    read_row_misses_core_0: 0
+    write_queue_len_avg_0: 4.41666651
+    read_row_misses_core_1: 1
+    queue_len_0: 184
+    write_queue_len_0: 53
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+
+
+    RowPolicy:
+      impl: ClosedRowPolicy
+      num_close_reqs: 0
+
+
+
+[2026-01-28 01:39:21.497] [info] Simulation completed in 0s
+[2026-01-28 01:39:21.497] [info] Total time: 0.000 seconds

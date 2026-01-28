@@ -1,0 +1,88 @@
+[Ramulator::SSTTrace] [info] Loading SST-format trace file traces/static/all_domains_combined.trace ...
+[Ramulator::SSTTrace] [info]   Domain 0: 10 entries (7 reads, 3 writes)
+[Ramulator::SSTTrace] [info]   Domain 1: 10 entries (6 reads, 4 writes)
+[Ramulator::SSTTrace] [info]   Domain 2: 10 entries (7 reads, 3 writes)
+[Ramulator::SSTTrace] [info]   Domain 3: 10 entries (8 reads, 2 writes)
+[Ramulator::SSTTrace] [info]   Domain 4: 10 entries (6 reads, 4 writes)
+[Ramulator::SSTTrace] [info]   Domain 5: 10 entries (7 reads, 3 writes)
+[Ramulator::SSTTrace] [info]   Domain 6: 10 entries (6 reads, 4 writes)
+[Ramulator::SSTTrace] [info]   Domain 7: 10 entries (9 reads, 1 writes)
+[Ramulator::SSTTrace] [info] Loaded 80 entries across 8 domains.
+Frontend:
+  impl: SSTTrace
+
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 24
+  total_num_read_requests: 56
+  memory_system_cycles: 178
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+
+
+  Controller:
+    impl: Generic
+    id: Channel 0
+    avg_read_latency_0: 3.49333334
+    priority_queue_len_avg_0: 0
+    queue_len_avg_0: 51.7977524
+    write_queue_len_0: 3286
+    read_queue_len_0: 5934
+    queue_len_0: 9220
+    num_other_reqs_0: 0
+    read_latency_0: 1572
+    num_read_reqs_0: 450
+    read_row_conflicts_core_7: 0
+    read_row_conflicts_core_6: 0
+    read_row_misses_core_0: 5
+    read_row_misses_core_2: 0
+    write_row_conflicts_0: 0
+    write_row_misses_0: 0
+    num_write_reqs_0: 24
+    read_row_misses_core_6: 0
+    read_row_hits_core_1: 0
+    read_row_hits_core_0: 2
+    read_row_conflicts_core_0: 0
+    read_row_conflicts_0: 14
+    read_row_misses_0: 8
+    priority_queue_len_0: 0
+    read_row_misses_core_3: 0
+    row_conflicts_0: 14
+    read_row_hits_core_5: 0
+    read_row_conflicts_core_1: 2
+    row_hits_0: 3
+    write_queue_len_avg_0: 18.4606743
+    read_row_misses_core_1: 3
+    read_row_hits_0: 3
+    read_row_hits_core_2: 0
+    row_misses_0: 8
+    read_row_conflicts_core_2: 6
+    read_row_hits_core_7: 0
+    read_row_conflicts_core_5: 2
+    read_row_hits_core_3: 1
+    read_row_misses_core_7: 0
+    read_row_conflicts_core_3: 3
+    read_row_conflicts_core_4: 1
+    read_queue_len_avg_0: 33.3370781
+    read_row_hits_core_4: 0
+    read_row_misses_core_4: 0
+    write_row_hits_0: 0
+    read_row_misses_core_5: 0
+    read_row_hits_core_6: 0
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+
+
+    RowPolicy:
+      impl: ClosedRowPolicy
+      num_close_reqs: 0
+
+
+
+[2026-01-28 01:28:29.526] [info] Simulation completed in 0s
+[2026-01-28 01:28:29.526] [info] Total time: 0.000 seconds

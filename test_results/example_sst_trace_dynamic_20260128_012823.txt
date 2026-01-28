@@ -1,0 +1,103 @@
+[Ramulator::SSTTrace] [info] Loading SST-format trace file example_sst_trace.trace ...
+[Ramulator::SSTTrace] [info]   Domain 0: 15 entries (12 reads, 3 writes)
+[Ramulator::SSTTrace] [info]   Domain 1: 15 entries (3 reads, 12 writes)
+[Ramulator::SSTTrace] [info]   Domain 2: 15 entries (9 reads, 6 writes)
+[Ramulator::SSTTrace] [info]   Domain 3: 15 entries (15 reads, 0 writes)
+[Ramulator::SSTTrace] [info] Loaded 60 entries across 4 domains.
+[2026-01-28 01:28:29.133] [info] FlexProfDynamic: Initialized with 4 domains, auto_adapt=false
+Frontend:
+  impl: SSTTrace
+
+[2026-01-28 01:28:29.133] [info] FlexProfDynamic Controller 0 finalized:
+[2026-01-28 01:28:29.133] [info]   Total turns: 2, Read turns: 2, Write turns: 0, Idle turns: 0
+[2026-01-28 01:28:29.133] [info]   Adaptation events: 0
+[2026-01-28 01:28:29.133] [info]   Avg read latency: 0.00, Avg queue len: 26.35
+[2026-01-28 01:28:29.133] [info]   Row hits: 0, Row misses: 7, Row conflicts: 0
+[2026-01-28 01:28:29.133] [info]   Domain 0: 12 reads, 3 writes, 1 turns, final allocation=1, final bias=0.60
+[2026-01-28 01:28:29.133] [info]   Domain 1: 3 reads, 12 writes, 1 turns, final allocation=1, final bias=0.60
+[2026-01-28 01:28:29.133] [info]   Domain 2: 9 reads, 6 writes, 0 turns, final allocation=1, final bias=0.60
+[2026-01-28 01:28:29.133] [info]   Domain 3: 15 reads, 0 writes, 0 turns, final allocation=1, final bias=0.60
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 21
+  total_num_read_requests: 39
+  memory_system_cycles: 23
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+
+
+  Controller:
+    impl: FlexProfDynamic
+    id: Channel 0
+    domain_3_idle_turns: 0
+    domain_3_reads: 15
+    domain_1_turns_served: 1
+    domain_1_idle_turns: 0
+    domain_1_reads: 3
+    domain_0_idle_turns: 0
+    domain_0_writes: 3
+    domain_3_writes: 0
+    domain_0_reads: 12
+    domain_0_turns_served: 1
+    priority_queue_len_avg_0: 0
+    read_queue_len_avg_0: 15.217391
+    write_queue_len_0: 256
+    domain_2_turns_served: 0
+    read_queue_len_0: 350
+    queue_len_0: 606
+    read_row_conflicts_core_3: 0
+    priority_queue_len_0: 0
+    read_row_misses_core_3: 0
+    row_conflicts_0: 0
+    domain_3_turns_served: 0
+    avg_read_latency_0: 0
+    domain_1_writes: 12
+    queue_len_avg_0: 26.347826
+    flexprof_dyn_adaptation_events_0: 0
+    flexprof_dyn_idle_turns_0: 0
+    domain_2_writes: 6
+    flexprof_dyn_write_turns_0: 0
+    flexprof_dyn_total_turns_0: 2
+    write_row_hits_0: 0
+    read_row_misses_core_2: 0
+    flexprof_dyn_read_turns_0: 2
+    domain_2_idle_turns: 0
+    num_other_reqs_0: 0
+    num_write_reqs_0: 21
+    read_latency_0: 0
+    num_read_reqs_0: 39
+    read_row_hits_core_0: 0
+    read_row_conflicts_core_0: 0
+    read_row_hits_core_1: 0
+    read_row_misses_0: 6
+    read_row_conflicts_0: 0
+    write_row_misses_0: 1
+    write_row_conflicts_0: 0
+    row_hits_0: 0
+    read_row_conflicts_core_1: 0
+    domain_2_reads: 9
+    read_row_misses_core_0: 4
+    write_queue_len_avg_0: 11.130435
+    read_row_misses_core_1: 2
+    read_row_hits_0: 0
+    read_row_hits_core_2: 0
+    row_misses_0: 7
+    read_row_conflicts_core_2: 0
+    read_row_hits_core_3: 0
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+
+
+    RowPolicy:
+      impl: ClosedRowPolicy
+      num_close_reqs: 0
+
+
+
+[2026-01-28 01:28:29.134] [info] Simulation completed in 0s
+[2026-01-28 01:28:29.134] [info] Total time: 0.000 seconds
